@@ -172,7 +172,6 @@
                 this.chatContainer = document.getElementById('chatContainer');
                 this.typingIndicator = document.getElementById('typingIndicator');
                 this.errorMessage = document.getElementById('errorMessage');
-                this.apiKey = ''; // Will be set by user
                 
                 this.setupEventListeners();
                 this.focusInput();
@@ -207,15 +206,6 @@
                 const message = this.chatInput.value.trim();
                 if (!message) return;
 
-                // Check if API key is set
-                if (!this.apiKey) {
-                    this.apiKey = prompt('Please enter your OpenAI API key:');
-                    if (!this.apiKey) {
-                        this.showError('API key is required to use the chatbot.');
-                        return;
-                    }
-                }
-
                 // Add user message to chat
                 this.addMessage('USER.EXE', message, 'user');
                 this.chatInput.value = '';
@@ -241,9 +231,7 @@
                     },
                     body: JSON.stringify({
                         developer_message: "You are a helpful assistant in a MS DOS-style interface. Keep responses concise and technical, as if you're running in a DOS environment.",
-                        user_message: message,
-                        model: "gpt-4o-mini",
-                        api_key: this.apiKey
+                        user_message: message
                     })
                 });
 

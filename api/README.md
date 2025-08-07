@@ -1,76 +1,100 @@
-# OpenAI Chat API Backend
+# 🖥️ MS DOS Chatbot API
 
-This is a FastAPI-based backend service that provides a streaming chat interface using OpenAI's API.
+Welcome to the backend API for the most retro-tastic chatbot around! This FastAPI-powered service brings the DOS aesthetic to modern AI conversations.
 
-## Prerequisites
+## 🚀 Quick Start
 
-- Python 3.8 or higher
-- pip (Python package manager)
-- An OpenAI API key
+### 1. Environment Setup
 
-## Setup
+Create a `.env` file in the `api` directory:
 
-1. Create a virtual environment (recommended):
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows, use: venv\Scripts\activate
+# OpenAI API Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Optional: Model Configuration
+DEFAULT_MODEL=gpt-4o-mini
+
+# Optional: Server Configuration
+HOST=0.0.0.0
+PORT=8000
 ```
 
-2. Install the required dependencies:
+### 2. Install Dependencies
+
 ```bash
-pip install fastapi uvicorn openai pydantic
+pip install -r requirements.txt
 ```
 
-## Running the Server
+### 3. Run the Server
 
-1. Make sure you're in the `api` directory:
 ```bash
-cd api
-```
-
-2. Start the server:
-```bash
-python app.py
+python3 app.py
 ```
 
 The server will start on `http://localhost:8000`
 
-## API Endpoints
+## 🔧 API Endpoints
 
-### Chat Endpoint
-- **URL**: `/api/chat`
-- **Method**: POST
-- **Request Body**:
+### POST `/api/chat`
+Main chat endpoint that handles streaming responses.
+
+**Request Body:**
 ```json
 {
-    "developer_message": "string",
-    "user_message": "string",
-    "model": "gpt-4.1-mini",  // optional
-    "api_key": "your-openai-api-key"
+  "developer_message": "System prompt for the AI",
+  "user_message": "User's message",
+  "model": "gpt-4o-mini",  // Optional
+  "api_key": "sk-..."      // Optional (uses .env if not provided)
 }
 ```
-- **Response**: Streaming text response
 
-### Health Check
-- **URL**: `/api/health`
-- **Method**: GET
-- **Response**: `{"status": "ok"}`
+**Response:** Streaming text response
 
-## API Documentation
+### GET `/api/health`
+Health check endpoint.
 
-Once the server is running, you can access the interactive API documentation at:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+**Response:**
+```json
+{
+  "status": "ok",
+  "message": "MS DOS Chatbot API is running"
+}
+```
 
-## CORS Configuration
+### GET `/`
+Serves the MS DOS chatbot frontend.
 
-The API is configured to accept requests from any origin (`*`). This can be modified in the `app.py` file if you need to restrict access to specific domains.
+## 🎨 Features
 
-## Error Handling
+- **Environment Configuration**: Uses `.env` file for secure API key storage
+- **Streaming Responses**: Real-time AI responses for authentic DOS feel
+- **CORS Enabled**: Works with any frontend
+- **Error Handling**: Graceful error responses with helpful messages
+- **Static File Serving**: Serves the frontend directly
 
-The API includes basic error handling for:
-- Invalid API keys
-- OpenAI API errors
-- General server errors
+## 🔐 Security
 
-All errors will return a 500 status code with an error message. 
+- API keys are loaded from environment variables
+- No hardcoded secrets in the code
+- CORS configured for development (customize for production)
+
+## 🛠️ Configuration Options
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `OPENAI_API_KEY` | Required | Your OpenAI API key |
+| `DEFAULT_MODEL` | `gpt-4o-mini` | Default AI model to use |
+| `HOST` | `0.0.0.0` | Server host address |
+| `PORT` | `8000` | Server port |
+
+## 🎯 Perfect For
+
+- **Retro Computing Fans**: DOS aesthetic with modern AI
+- **Developers**: Clean API with streaming support
+- **AI Enthusiasts**: Easy integration with OpenAI models
+- **Nostalgia Lovers**: The best of both worlds!
+
+---
+
+*"In a world of modern APIs, be the DOS interface that stands out!"* 🖥️✨ 

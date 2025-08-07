@@ -10,6 +10,10 @@ from openai import OpenAI
 import os
 from typing import Optional
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Initialize FastAPI application with a title
 app = FastAPI(title="MS DOS Chatbot API")
@@ -34,21 +38,29 @@ if frontend_path.exists():
 class ChatRequest(BaseModel):
     developer_message: str  # Message from the developer/system
     user_message: str      # Message from the user
-    model: Optional[str] = "gpt-4o-mini"  # Optional model selection with default
-    api_key: str          # OpenAI API key for authentication
+    model: Optional[str] = None  # Optional model selection
+    api_key: Optional[str] = None  # Optional API key (can use env var)
 
 # Define the main chat endpoint that handles POST requests
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
+        # Get API key from request or environment
+        api_key = request.api_key or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=400, detail="OpenAI API key is required. Set it in .env file or provide in request.")
+        
+        # Get model from request or environment
+        model = request.model or os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
+        
         # Initialize OpenAI client with the provided API key
-        client = OpenAI(api_key=request.api_key)
+        client = OpenAI(api_key=api_key)
         
         # Create an async generator function for streaming responses
         async def generate():
             # Create a streaming chat completion request
             stream = client.chat.completions.create(
-                model=request.model,
+                model=model,
                 messages=[
                     {"role": "system", "content": request.developer_message},
                     {"role": "user", "content": request.user_message}
@@ -83,5 +95,8 @@ async def read_root():
 # Entry point for running the application directly
 if __name__ == "__main__":
     import uvicorn
+    # Get host and port from environment or use defaults
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", 8000))
     # Start the server on all network interfaces (0.0.0.0) on port 8000
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=host, port=port)
