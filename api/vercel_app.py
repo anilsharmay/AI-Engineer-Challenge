@@ -1,13 +1,11 @@
-# Vercel serverless function for MS DOS Chatbot
+# Minimal Vercel serverless function for MS DOS Chatbot
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from openai import OpenAI
 import os
 from typing import Optional
 from dotenv import load_dotenv
-from mangum import Mangum
 
 # Load environment variables
 load_dotenv()
@@ -31,7 +29,12 @@ class ChatRequest(BaseModel):
     model: Optional[str] = None
     api_key: Optional[str] = None
 
-# Define the main chat endpoint
+# Health check endpoint
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "message": "MS DOS Chatbot API is running"}
+
+# Simple chat endpoint (non-streaming for now)
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
@@ -40,38 +43,11 @@ async def chat(request: ChatRequest):
         if not api_key:
             raise HTTPException(status_code=400, detail="OpenAI API key is required.")
         
-        # Get model from request or environment
-        model = request.model or os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
+        # For now, return a simple response to test the endpoint
+        return {"response": f"Received: {request.user_message}", "status": "success"}
         
-        # Initialize OpenAI client
-        client = OpenAI(api_key=api_key)
-        
-        # Create streaming response
-        async def generate():
-            stream = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": request.developer_message},
-                    {"role": "user", "content": request.user_message}
-                ],
-                stream=True,
-                max_tokens=1000,
-                temperature=0.7
-            )
-            
-            for chunk in stream:
-                if chunk.choices[0].delta.content is not None:
-                    yield chunk.choices[0].delta.content
-
-        return StreamingResponse(generate(), media_type="text/plain")
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# Health check endpoint
-@app.get("/api/health")
-async def health_check():
-    return {"status": "ok", "message": "MS DOS Chatbot API is running"}
 
 # Serve the main page
 @app.get("/")
@@ -303,20 +279,8 @@ async def read_root():
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
 
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder();
-                    let result = '';
-
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        
-                        const chunk = decoder.decode(value);
-                        result += chunk;
-                        this.updateLastAssistantMessage(result);
-                    }
-
-                    return result;
+                    const data = await response.json();
+                    return data.response || 'No response received';
                 }
 
                 addMessage(sender, content, type) {
@@ -336,18 +300,6 @@ async def read_root():
                     
                     this.chatContainer.appendChild(messageDiv);
                     this.scrollToBottom();
-                }
-
-                updateLastAssistantMessage(content) {
-                    const messages = this.chatContainer.querySelectorAll('.assistant-message');
-                    if (messages.length > 0) {
-                        const lastMessage = messages[messages.length - 1];
-                        const contentDiv = lastMessage.querySelector('.message-content');
-                        if (contentDiv) {
-                            contentDiv.textContent = content;
-                            this.scrollToBottom();
-                        }
-                    }
                 }
 
                 showTypingIndicator() {
@@ -390,9 +342,6 @@ async def read_root():
     </body>
     </html>
     """)
-
-# Create handler for Vercel
-handler = Mangum(app)
 
 # For local development
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
-# Vercel entry point for the MS DOS Chatbot API
-from app import app
-from mangum import Mangum
+# Standard Vercel serverless function entry point
+from vercel_app import app
 
-# Create handler for Vercel
-handler = Mangum(app)
+# Export the app for Vercel
+handler = app
