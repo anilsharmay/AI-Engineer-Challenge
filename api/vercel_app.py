@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from openai import OpenAI
 import os
 from typing import Optional
 from dotenv import load_dotenv
@@ -34,7 +35,7 @@ class ChatRequest(BaseModel):
 async def health_check():
     return {"status": "ok", "message": "MS DOS Chatbot API is running"}
 
-# Simple chat endpoint (non-streaming for now)
+# Chat endpoint with OpenAI integration
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
@@ -43,8 +44,25 @@ async def chat(request: ChatRequest):
         if not api_key:
             raise HTTPException(status_code=400, detail="OpenAI API key is required.")
         
-        # For now, return a simple response to test the endpoint
-        return {"response": f"Received: {request.user_message}", "status": "success"}
+        # Get model from request or environment
+        model = request.model or os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
+        
+        # Initialize OpenAI client
+        client = OpenAI(api_key=api_key)
+        
+        # Create chat completion
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": request.developer_message},
+                {"role": "user", "content": request.user_message}
+            ],
+            max_tokens=1000,
+            temperature=0.7
+        )
+        
+        # Return the response
+        return {"response": response.choices[0].message.content, "status": "success"}
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
