@@ -1,6 +1,7 @@
 # Import required FastAPI components for building the API
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 # Import Pydantic for data validation and settings management
 from pydantic import BaseModel
@@ -8,9 +9,10 @@ from pydantic import BaseModel
 from openai import OpenAI
 import os
 from typing import Optional
+from pathlib import Path
 
 # Initialize FastAPI application with a title
-app = FastAPI(title="OpenAI Chat API")
+app = FastAPI(title="MS DOS Chatbot API")
 
 # Configure CORS (Cross-Origin Resource Sharing) middleware
 # This allows the API to be accessed from different domains/origins
@@ -22,12 +24,17 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers in requests
 )
 
+# Mount static files for the frontend
+frontend_path = Path(__file__).parent.parent / "frontend"
+if frontend_path.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="static")
+
 # Define the data model for chat requests using Pydantic
 # This ensures incoming request data is properly validated
 class ChatRequest(BaseModel):
     developer_message: str  # Message from the developer/system
     user_message: str      # Message from the user
-    model: Optional[str] = "gpt-4.1-mini"  # Optional model selection with default
+    model: Optional[str] = "gpt-4o-mini"  # Optional model selection with default
     api_key: str          # OpenAI API key for authentication
 
 # Define the main chat endpoint that handles POST requests
@@ -43,10 +50,12 @@ async def chat(request: ChatRequest):
             stream = client.chat.completions.create(
                 model=request.model,
                 messages=[
-                    {"role": "developer", "content": request.developer_message},
+                    {"role": "system", "content": request.developer_message},
                     {"role": "user", "content": request.user_message}
                 ],
-                stream=True  # Enable streaming response
+                stream=True,  # Enable streaming response
+                max_tokens=1000,  # Limit response length for DOS-style brevity
+                temperature=0.7  # Add some creativity while keeping it technical
             )
             
             # Yield each chunk of the response as it becomes available
@@ -64,7 +73,12 @@ async def chat(request: ChatRequest):
 # Define a health check endpoint to verify API status
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "message": "MS DOS Chatbot API is running"}
+
+# Serve the main page
+@app.get("/")
+async def read_root():
+    return FileResponse(str(frontend_path / "index.html"))
 
 # Entry point for running the application directly
 if __name__ == "__main__":

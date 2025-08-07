@@ -1,4 +1,4 @@
-<p align = "center" draggable=”false” ><img src="https://github.com/AI-Maker-Space/LLM-Dev-101/assets/37101144/d1343317-fa2f-41e1-8af1-1dbb18399719" 
+<p align = "center" draggable="false" ><img src="https://github.com/AI-Maker-Space/LLM-Dev-101/assets/37101144/d1343317-fa2f-41e1-8af1-1dbb18399719" 
      width="200px"
      height="auto"/>
 </p>
@@ -15,6 +15,28 @@
 In this repository, we'll walk you through the steps to create a LLM (Large Language Model) powered application with a vibe-coded frontend!
 
 Are you ready? Let's get started!
+
+## 🖥️ MS DOS Chatbot - Retro AI Experience
+
+**NEW!** Experience the future of AI with the aesthetic of the past! Our MS DOS-style chatbot brings together the best of both worlds:
+
+### ✨ Features
+- **Authentic DOS Interface**: Blue background, white text, Courier font
+- **File-based Messaging**: Messages appear as `USER.EXE` and `ASSISTANT.EXE` files
+- **Real-time Streaming**: Watch responses appear character by character
+- **Keyboard Shortcuts**: `Enter` to send, `Ctrl+C` to clear (just like DOS!)
+- **Modern AI Backend**: Powered by OpenAI's GPT models
+
+### 🚀 Quick Start
+1. **Start the Backend**: `cd api && python app.py`
+2. **Open Your Browser**: Navigate to `http://localhost:8000`
+3. **Enter Your API Key**: You'll be prompted on first use
+4. **Start Chatting**: Type and press Enter to begin!
+
+### 🎮 Try It Now
+The chatbot is ready to use! Just run the backend and enjoy the most retro-tastic AI experience around.
+
+---
 
 <details>
   <summary>🖥️ Accessing "gpt-4.1-mini" (ChatGPT) like a developer</summary>
