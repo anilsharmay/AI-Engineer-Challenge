@@ -8,6 +8,7 @@ import os
 from typing import Optional
 from pathlib import Path
 from dotenv import load_dotenv
+from mangum import Mangum
 
 # Load environment variables
 load_dotenv()
@@ -98,6 +99,9 @@ async def read_root():
             </body>
         </html>
         """)
+
+# Create handler for Vercel
+handler = Mangum(app)
 
 # For local development
 if __name__ == "__main__":
