@@ -120,7 +120,6 @@ async def read_root():
             .message {
                 margin-bottom: 15px;
                 padding: 10px;
-                border: 1px solid #ffffff;
                 background-color: #000080;
             }
 
@@ -207,18 +206,18 @@ async def read_root():
         <div class="dos-window">
             <div class="chat-container" id="chatContainer">
                 <div class="message assistant-message">
-                    <div class="message-header">ASSISTANT.EXE</div>
+                    <div class="message-header">C:\\Assistant></div>
                     <div class="message-content">Welcome to the MS DOS Chatbot! I'm ready to help you with any questions. Type your message and press Enter to start chatting.</div>
                 </div>
             </div>
             
             <div class="input-container">
                 <div class="input-line">
-                    <span class="prompt">C:\CHAT\></span>
+                    <span class="prompt">C:\\You></span>
                     <input type="text" id="chatInput" class="chat-input" placeholder="Type your message here..." autocomplete="off">
                 </div>
                 <div class="typing-indicator" id="typingIndicator">
-                    ASSISTANT.EXE is processing...
+                    C:\\Assistant> is processing...
                 </div>
                 <div class="error-message" id="errorMessage"></div>
             </div>
@@ -267,14 +266,14 @@ async def read_root():
                     const message = this.chatInput.value.trim();
                     if (!message) return;
 
-                    this.addMessage('USER.EXE', message, 'user');
+                    this.addMessage('C:\\\\You>', message, 'user');
                     this.chatInput.value = '';
                     this.showTypingIndicator();
 
                     try {
                         const response = await this.callAPI(message);
                         this.hideTypingIndicator();
-                        this.addMessage('ASSISTANT.EXE', response, 'assistant');
+                        this.addMessage('C:\\\\Assistant>', response, 'assistant');
                     } catch (error) {
                         this.hideTypingIndicator();
                         this.showError(`Error: ${error.message}`);
@@ -340,7 +339,7 @@ async def read_root():
                 clearChat() {
                     this.chatContainer.innerHTML = `
                         <div class="message assistant-message">
-                            <div class="message-header">ASSISTANT.EXE</div>
+                            <div class="message-header">C:\\\\Assistant></div>
                             <div class="message-content">Chat cleared. Ready for new conversation.</div>
                         </div>
                     `;
