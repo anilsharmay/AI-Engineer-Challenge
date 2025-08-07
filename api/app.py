@@ -1,6 +1,6 @@
 # Import required FastAPI components for building the API
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 # Import Pydantic for data validation and settings management
@@ -28,8 +28,10 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers in requests
 )
 
-# Mount static files for the frontend
+# Get the path to frontend files
 frontend_path = Path(__file__).parent.parent / "frontend"
+
+# Mount static files for the frontend (only if directory exists)
 if frontend_path.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
 
@@ -90,7 +92,20 @@ async def health_check():
 # Serve the main page
 @app.get("/")
 async def read_root():
-    return FileResponse(str(frontend_path / "index.html"))
+    index_path = frontend_path / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    else:
+        return HTMLResponse("""
+        <html>
+            <head><title>MS DOS Chatbot</title></head>
+            <body>
+                <h1>MS DOS Chatbot</h1>
+                <p>Frontend files not found. Please check the deployment.</p>
+                <p>API is running at <a href="/api/health">/api/health</a></p>
+            </body>
+        </html>
+        """)
 
 # Entry point for running the application directly
 if __name__ == "__main__":
