@@ -1,5 +1,5 @@
 # Import required FastAPI components for building the API
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,9 +8,20 @@ from pydantic import BaseModel
 # Import OpenAI client for interacting with OpenAI's API
 from openai import OpenAI
 import os
-from typing import Optional
+import asyncio
+import pickle
+import shutil
+from typing import Optional, List, Dict, Any
 from pathlib import Path
 from dotenv import load_dotenv
+
+# Import aimakerspace components for RAG functionality
+import sys
+sys.path.append(str(Path(__file__).parent.parent))
+from aimakerspace.vectordatabase import VectorDatabase
+from aimakerspace.text_utils import PDFLoader, CharacterTextSplitter
+from aimakerspace.openai_utils.embedding import EmbeddingModel
+from aimakerspace.openai_utils.chatmodel import ChatOpenAI
 
 # Load environment variables
 load_dotenv()
@@ -31,17 +42,40 @@ app.add_middleware(
 # Get the path to frontend files
 frontend_path = Path(__file__).parent.parent / "frontend"
 
+# Get paths for uploads and vector stores
+uploads_path = Path(__file__).parent / "uploads"
+vector_stores_path = Path(__file__).parent / "vector_stores"
+
+# Create directories if they don't exist
+uploads_path.mkdir(exist_ok=True)
+vector_stores_path.mkdir(exist_ok=True)
+
 # Mount static files for the frontend (only if directory exists)
 if frontend_path.exists():
     app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
 
-# Define the data model for chat requests using Pydantic
+# Global storage for document status
+document_status: Dict[str, Dict[str, Any]] = {}
+
+# Define the data models for chat requests using Pydantic
 # This ensures incoming request data is properly validated
 class ChatRequest(BaseModel):
     developer_message: str  # Message from the developer/system
     user_message: str      # Message from the user
     model: Optional[str] = None  # Optional model selection
     api_key: Optional[str] = None  # Optional API key (can use env var)
+
+class RAGChatRequest(BaseModel):
+    user_message: str      # Message from the user
+    document: str         # Document filename to query
+    model: Optional[str] = None  # Optional model selection
+    api_key: Optional[str] = None  # Optional API key (can use env var)
+
+class DocumentStatus(BaseModel):
+    filename: str
+    status: str  # "uploaded", "processing", "indexed", "error"
+    chunks_count: Optional[int] = None
+    error_message: Optional[str] = None
 
 # Define the main chat endpoint that handles POST requests
 @app.post("/api/chat")
@@ -83,6 +117,202 @@ async def chat(request: ChatRequest):
     except Exception as e:
         # Handle any errors that occur during processing
         raise HTTPException(status_code=500, detail=str(e))
+
+# PDF Upload endpoint
+@app.post("/api/upload-pdf")
+async def upload_pdf(file: UploadFile = File(...)):
+    """Upload a PDF file for processing and indexing."""
+    try:
+        # Validate file type
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+        
+        # Validate file size (10MB limit)
+        file_size = 0
+        content = await file.read()
+        file_size = len(content)
+        
+        if file_size > 10 * 1024 * 1024:  # 10MB
+            raise HTTPException(status_code=400, detail="File size must be less than 10MB")
+        
+        # Save file
+        file_path = uploads_path / file.filename
+        with open(file_path, "wb") as buffer:
+            buffer.write(content)
+        
+        # Update document status
+        document_status[file.filename] = {
+            "filename": file.filename,
+            "status": "uploaded",
+            "chunks_count": None,
+            "error_message": None
+        }
+        
+        return {
+            "message": f"PDF '{file.filename}' uploaded successfully",
+            "filename": file.filename,
+            "size": file_size
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+# PDF Processing endpoint
+@app.post("/api/process-pdf/{filename}")
+async def process_pdf(filename: str):
+    """Process and index a PDF file for RAG functionality."""
+    try:
+        # Check if file exists
+        file_path = uploads_path / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="PDF file not found")
+        
+        # Update status to processing
+        if filename in document_status:
+            document_status[filename]["status"] = "processing"
+        
+        # Load PDF and extract text
+        pdf_loader = PDFLoader(str(file_path))
+        documents = pdf_loader.load_documents()
+        
+        if not documents or not documents[0].strip():
+            raise HTTPException(status_code=400, detail="No text content found in PDF")
+        
+        # Split text into chunks
+        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        chunks = text_splitter.split_texts(documents)
+        
+        # Create vector database
+        vector_db = VectorDatabase()
+        await vector_db.abuild_from_list(chunks)
+        
+        # Save vector database
+        vector_db_path = vector_stores_path / f"{filename}.pkl"
+        with open(vector_db_path, "wb") as f:
+            pickle.dump(vector_db, f)
+        
+        # Update document status
+        if filename in document_status:
+            document_status[filename].update({
+                "status": "indexed",
+                "chunks_count": len(chunks)
+            })
+        
+        return {
+            "message": f"PDF '{filename}' processed and indexed successfully",
+            "filename": filename,
+            "chunks_count": len(chunks)
+        }
+        
+    except Exception as e:
+        # Update status to error
+        if filename in document_status:
+            document_status[filename].update({
+                "status": "error",
+                "error_message": str(e)
+            })
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+# RAG Chat endpoint
+@app.post("/api/rag-chat")
+async def rag_chat(request: RAGChatRequest):
+    """Chat with a specific document using RAG."""
+    try:
+        # Check if document is indexed
+        if request.document not in document_status:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        if document_status[request.document]["status"] != "indexed":
+            raise HTTPException(status_code=400, detail="Document not yet indexed")
+        
+        # Load vector database
+        vector_db_path = vector_stores_path / f"{request.document}.pkl"
+        if not vector_db_path.exists():
+            raise HTTPException(status_code=404, detail="Vector database not found")
+        
+        with open(vector_db_path, "rb") as f:
+            vector_db = pickle.load(f)
+        
+        # Retrieve relevant context
+        relevant_chunks = vector_db.search_by_text(
+            query_text=request.user_message,
+            k=5,
+            return_as_text=True
+        )
+        
+        if not relevant_chunks:
+            raise HTTPException(status_code=400, detail="No relevant context found")
+        
+        # Create RAG prompt
+        context = "\n\n".join(relevant_chunks)
+        rag_prompt = f"""You are a helpful assistant that answers questions based ONLY on the provided context from a PDF document. 
+Do not use any external knowledge. If the answer is not in the context, clearly state that the information is not available in the document.
+
+Context from document:
+{context}
+
+Question: {request.user_message}
+
+Answer based only on the context above:"""
+        
+        # Get API key and model
+        api_key = request.api_key or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=400, detail="OpenAI API key is required")
+        
+        model = request.model or os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
+        
+        # Initialize chat model
+        chat_model = ChatOpenAI(model_name=model)
+        
+        # Create streaming response
+        async def generate():
+            try:
+                async for chunk in chat_model.astream([{"role": "user", "content": rag_prompt}]):
+                    yield chunk
+            except Exception as e:
+                yield f"Error: {str(e)}"
+        
+        return StreamingResponse(generate(), media_type="text/plain")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Document management endpoints
+@app.get("/api/documents")
+async def list_documents():
+    """List all uploaded documents and their status."""
+    return {"documents": list(document_status.values())}
+
+@app.get("/api/documents/{filename}")
+async def get_document_status(filename: str):
+    """Get the status of a specific document."""
+    if filename not in document_status:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return document_status[filename]
+
+@app.delete("/api/documents/{filename}")
+async def delete_document(filename: str):
+    """Delete a document and its vector store."""
+    try:
+        # Remove PDF file
+        file_path = uploads_path / filename
+        if file_path.exists():
+            file_path.unlink()
+        
+        # Remove vector store
+        vector_db_path = vector_stores_path / f"{filename}.pkl"
+        if vector_db_path.exists():
+            vector_db_path.unlink()
+        
+        # Remove from status tracking
+        if filename in document_status:
+            del document_status[filename]
+        
+        return {"message": f"Document '{filename}' deleted successfully"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Deletion failed: {str(e)}")
 
 # Define a health check endpoint to verify API status
 @app.get("/api/health")
