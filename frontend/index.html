@@ -445,6 +445,11 @@
                 this.setupEventListeners();
                 this.focusInput();
                 this.loadDocuments();
+                
+                // Set up periodic document status checking (less frequent)
+                this.documentCheckInterval = setInterval(() => {
+                    this.loadDocuments();
+                }, 3000); // Check every 3 seconds instead of constantly
             }
 
             setupEventListeners() {
@@ -544,8 +549,10 @@
                     // Process the PDF
                     await this.processPDF(result.filename);
                     
-                    // Refresh document list
-                    await this.loadDocuments();
+                    // Refresh document list (with a small delay to allow processing)
+                    setTimeout(() => {
+                        this.loadDocuments();
+                    }, 1000);
                     
                     // Clear file input
                     this.pdfUpload.value = '';
@@ -585,12 +592,19 @@
                     const response = await fetch('/api/documents');
                     if (response.ok) {
                         const data = await response.json();
-                        this.documents = {};
+                        const newDocuments = {};
                         data.documents.forEach(doc => {
-                            this.documents[doc.filename] = doc;
+                            newDocuments[doc.filename] = doc;
                         });
-                        this.updateDocumentList();
-                        this.updateDocumentDropdown();
+                        
+                        // Only update if documents have actually changed
+                        const documentsChanged = JSON.stringify(this.documents) !== JSON.stringify(newDocuments);
+                        
+                        if (documentsChanged) {
+                            this.documents = newDocuments;
+                            this.updateDocumentList();
+                            this.updateDocumentDropdown();
+                        }
                     }
                 } catch (error) {
                     console.error('Failed to load documents:', error);
@@ -628,16 +642,39 @@
             }
 
             updateDocumentDropdown() {
-                this.documentDropdown.innerHTML = '<option value="">Choose a document...</option>';
+                // Get current selected value to preserve selection
+                const currentSelection = this.documentDropdown.value;
                 
-                Object.values(this.documents)
-                    .filter(doc => doc.status === 'indexed')
-                    .forEach(doc => {
+                // Get indexed documents
+                const indexedDocs = Object.values(this.documents)
+                    .filter(doc => doc.status === 'indexed');
+                
+                // Only update if the list has changed
+                const currentOptions = Array.from(this.documentDropdown.options)
+                    .slice(1) // Skip the first "Choose a document..." option
+                    .map(option => option.value);
+                
+                const newOptions = indexedDocs.map(doc => doc.filename);
+                
+                // Check if options have changed
+                if (currentOptions.length !== newOptions.length || 
+                    !currentOptions.every(option => newOptions.includes(option))) {
+                    
+                    // Clear and rebuild dropdown
+                    this.documentDropdown.innerHTML = '<option value="">Choose a document...</option>';
+                    
+                    indexedDocs.forEach(doc => {
                         const option = document.createElement('option');
                         option.value = doc.filename;
                         option.textContent = doc.filename;
                         this.documentDropdown.appendChild(option);
                     });
+                    
+                    // Restore selection if it still exists
+                    if (currentSelection && newOptions.includes(currentSelection)) {
+                        this.documentDropdown.value = currentSelection;
+                    }
+                }
             }
 
             async deleteDocument(filename) {
