@@ -134,11 +134,257 @@
             border-top: 1px solid #ffffff;
             font-size: 12px;
         }
+
+        /* PDF Upload Interface Styles */
+        .upload-section {
+            background-color: #000080;
+            border: 2px solid #ffffff;
+            margin: 10px;
+            padding: 15px;
+            display: none;
+        }
+
+        .upload-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .upload-text {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .file-input-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .file-input {
+            background-color: #000080;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            font-family: 'Courier New', monospace;
+            padding: 5px;
+            flex: 1;
+        }
+
+        .upload-btn {
+            background-color: #000080;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .upload-btn:hover {
+            background-color: #00ff00;
+            color: #000080;
+        }
+
+        .upload-btn:disabled {
+            color: #808080;
+            border-color: #808080;
+            cursor: not-allowed;
+        }
+
+        .upload-status {
+            color: #ffff00;
+            font-style: italic;
+            min-height: 20px;
+        }
+
+        /* Document Status Panel */
+        .document-panel {
+            background-color: #000080;
+            border: 2px solid #ffffff;
+            margin: 10px;
+            padding: 15px;
+            display: none;
+        }
+
+        .panel-header {
+            color: #00ff00;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ffffff;
+            padding-bottom: 5px;
+        }
+
+        .document-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .document-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #ffffff;
+            margin-bottom: 5px;
+        }
+
+        .document-info {
+            flex: 1;
+        }
+
+        .document-name {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .document-status {
+            color: #ffff00;
+            font-size: 12px;
+        }
+
+        .document-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            background-color: #000080;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .action-btn:hover {
+            background-color: #00ff00;
+            color: #000080;
+        }
+
+        .delete-btn {
+            color: #ff0000;
+            border-color: #ff0000;
+        }
+
+        .delete-btn:hover {
+            background-color: #ff0000;
+            color: #000080;
+        }
+
+        /* Mode Selector */
+        .mode-selector {
+            background-color: #000080;
+            border: 2px solid #ffffff;
+            margin: 10px;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .mode-btn {
+            background-color: #000080;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            font-family: 'Courier New', monospace;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .mode-btn.active {
+            background-color: #00ff00;
+            color: #000080;
+        }
+
+        .mode-btn:hover:not(.active) {
+            background-color: #ffffff;
+            color: #000080;
+        }
+
+        /* Document Selector for RAG */
+        .document-selector {
+            background-color: #000080;
+            border: 2px solid #ffffff;
+            margin: 10px;
+            padding: 15px;
+            display: none;
+        }
+
+        .selector-header {
+            color: #00ff00;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .document-dropdown {
+            background-color: #000080;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            font-family: 'Courier New', monospace;
+            padding: 5px;
+            width: 100%;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .file-input-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .document-item {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            
+            .document-actions {
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="dos-header">
-        MS DOS Chatbot v1.0 - Press Enter to send message
+        MS DOS Chatbot v2.0 - PDF RAG System | Press Enter to send | F1: Upload PDF | F2: Documents
+    </div>
+    
+    <!-- Mode Selector -->
+    <div class="mode-selector">
+        <button id="generalMode" class="mode-btn active">GENERAL.EXE</button>
+        <button id="ragMode" class="mode-btn">RAG.EXE</button>
+    </div>
+
+    <!-- PDF Upload Section -->
+    <div class="upload-section" id="uploadSection">
+        <div class="upload-header">
+            <span class="prompt">C:\UPLOAD\></span>
+            <span class="upload-text">Upload PDF Document</span>
+        </div>
+        <div class="file-input-container">
+            <input type="file" id="pdfUpload" accept=".pdf" class="file-input">
+            <button id="uploadBtn" class="upload-btn">UPLOAD.EXE</button>
+        </div>
+        <div class="upload-status" id="uploadStatus"></div>
+    </div>
+
+    <!-- Document Status Panel -->
+    <div class="document-panel" id="documentPanel">
+        <div class="panel-header">DOCUMENT STATUS</div>
+        <div class="document-list" id="documentList">
+            <!-- Dynamic document status items will be added here -->
+        </div>
+    </div>
+
+    <!-- Document Selector for RAG -->
+    <div class="document-selector" id="documentSelector">
+        <div class="selector-header">SELECT DOCUMENT FOR RAG CHAT</div>
+        <select id="documentDropdown" class="document-dropdown">
+            <option value="">Choose a document...</option>
+        </select>
     </div>
     
     <div class="dos-window">
@@ -162,33 +408,81 @@
     </div>
     
     <div class="status-bar">
-        Ready | Press Enter to send | Ctrl+C to clear
+        Ready | Press Enter to send | Ctrl+C to clear | F1: Upload PDF | F2: Documents | Mode: <span id="currentMode">GENERAL</span>
     </div>
 
     <script>
         class DOSChatbot {
             constructor() {
+                // Core elements
                 this.chatInput = document.getElementById('chatInput');
                 this.chatContainer = document.getElementById('chatContainer');
                 this.typingIndicator = document.getElementById('typingIndicator');
                 this.errorMessage = document.getElementById('errorMessage');
+                this.currentModeElement = document.getElementById('currentMode');
+                
+                // Mode elements
+                this.generalModeBtn = document.getElementById('generalMode');
+                this.ragModeBtn = document.getElementById('ragMode');
+                
+                // Upload elements
+                this.uploadSection = document.getElementById('uploadSection');
+                this.pdfUpload = document.getElementById('pdfUpload');
+                this.uploadBtn = document.getElementById('uploadBtn');
+                this.uploadStatus = document.getElementById('uploadStatus');
+                
+                // Document elements
+                this.documentPanel = document.getElementById('documentPanel');
+                this.documentList = document.getElementById('documentList');
+                this.documentSelector = document.getElementById('documentSelector');
+                this.documentDropdown = document.getElementById('documentDropdown');
+                
+                // State
+                this.currentMode = 'general';
+                this.currentDocument = null;
+                this.documents = {};
                 
                 this.setupEventListeners();
                 this.focusInput();
+                this.loadDocuments();
             }
 
             setupEventListeners() {
+                // Chat input
                 this.chatInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
                         this.sendMessage();
                     }
                 });
 
-                // Handle Ctrl+C to clear chat
+                // Mode switching
+                this.generalModeBtn.addEventListener('click', () => this.switchMode('general'));
+                this.ragModeBtn.addEventListener('click', () => this.switchMode('rag'));
+
+                // Upload functionality
+                this.uploadBtn.addEventListener('click', () => this.uploadPDF());
+                this.pdfUpload.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.uploadStatus.textContent = `Selected: ${e.target.files[0].name}`;
+                    }
+                });
+
+                // Document dropdown
+                this.documentDropdown.addEventListener('change', (e) => {
+                    this.currentDocument = e.target.value;
+                });
+
+                // Keyboard shortcuts
                 document.addEventListener('keydown', (e) => {
                     if (e.ctrlKey && e.key === 'c') {
                         e.preventDefault();
                         this.clearChat();
+                    } else if (e.key === 'F1') {
+                        e.preventDefault();
+                        this.toggleUploadSection();
+                    } else if (e.key === 'F2') {
+                        e.preventDefault();
+                        this.toggleDocumentPanel();
                     }
                 });
 
@@ -196,6 +490,183 @@
                 document.addEventListener('click', () => {
                     this.focusInput();
                 });
+            }
+
+            switchMode(mode) {
+                this.currentMode = mode;
+                
+                // Update UI
+                this.generalModeBtn.classList.toggle('active', mode === 'general');
+                this.ragModeBtn.classList.toggle('active', mode === 'rag');
+                this.currentModeElement.textContent = mode.toUpperCase();
+                
+                // Show/hide document selector
+                this.documentSelector.style.display = mode === 'rag' ? 'block' : 'none';
+                
+                // Update chat prompt
+                const prompt = mode === 'general' ? 'C:\\CHAT\\>' : 'C:\\RAG\\>';
+                document.querySelector('.prompt').textContent = prompt;
+                
+                // Clear current document selection if switching to general
+                if (mode === 'general') {
+                    this.currentDocument = null;
+                    this.documentDropdown.value = '';
+                }
+            }
+
+            async uploadPDF() {
+                const file = this.pdfUpload.files[0];
+                if (!file) {
+                    this.showError('Please select a PDF file');
+                    return;
+                }
+
+                this.uploadBtn.disabled = true;
+                this.uploadStatus.textContent = 'Uploading...';
+
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    const response = await fetch('/api/upload-pdf', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Upload failed');
+                    }
+
+                    const result = await response.json();
+                    this.uploadStatus.textContent = `Uploaded: ${result.filename}`;
+                    
+                    // Process the PDF
+                    await this.processPDF(result.filename);
+                    
+                    // Refresh document list
+                    await this.loadDocuments();
+                    
+                    // Clear file input
+                    this.pdfUpload.value = '';
+                    
+                } catch (error) {
+                    this.showError(`Upload failed: ${error.message}`);
+                    this.uploadStatus.textContent = '';
+                } finally {
+                    this.uploadBtn.disabled = false;
+                }
+            }
+
+            async processPDF(filename) {
+                this.uploadStatus.textContent = 'Processing PDF...';
+                
+                try {
+                    const response = await fetch(`/api/process-pdf/${filename}`, {
+                        method: 'POST'
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Processing failed');
+                    }
+
+                    const result = await response.json();
+                    this.uploadStatus.textContent = `Processed: ${result.chunks_count} chunks created`;
+                    
+                } catch (error) {
+                    this.showError(`Processing failed: ${error.message}`);
+                    this.uploadStatus.textContent = '';
+                }
+            }
+
+            async loadDocuments() {
+                try {
+                    const response = await fetch('/api/documents');
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.documents = {};
+                        data.documents.forEach(doc => {
+                            this.documents[doc.filename] = doc;
+                        });
+                        this.updateDocumentList();
+                        this.updateDocumentDropdown();
+                    }
+                } catch (error) {
+                    console.error('Failed to load documents:', error);
+                }
+            }
+
+            updateDocumentList() {
+                this.documentList.innerHTML = '';
+                
+                Object.values(this.documents).forEach(doc => {
+                    const item = document.createElement('div');
+                    item.className = 'document-item';
+                    
+                    const statusColor = {
+                        'uploaded': '#ffff00',
+                        'processing': '#00ffff',
+                        'indexed': '#00ff00',
+                        'error': '#ff0000'
+                    }[doc.status] || '#ffffff';
+                    
+                    item.innerHTML = `
+                        <div class="document-info">
+                            <div class="document-name">${doc.filename}</div>
+                            <div class="document-status" style="color: ${statusColor}">
+                                ${doc.status.toUpperCase()}${doc.chunks_count ? ` (${doc.chunks_count} chunks)` : ''}
+                            </div>
+                        </div>
+                        <div class="document-actions">
+                            <button class="action-btn" onclick="chatbot.deleteDocument('${doc.filename}')">DELETE</button>
+                        </div>
+                    `;
+                    
+                    this.documentList.appendChild(item);
+                });
+            }
+
+            updateDocumentDropdown() {
+                this.documentDropdown.innerHTML = '<option value="">Choose a document...</option>';
+                
+                Object.values(this.documents)
+                    .filter(doc => doc.status === 'indexed')
+                    .forEach(doc => {
+                        const option = document.createElement('option');
+                        option.value = doc.filename;
+                        option.textContent = doc.filename;
+                        this.documentDropdown.appendChild(option);
+                    });
+            }
+
+            async deleteDocument(filename) {
+                if (!confirm(`Delete document "${filename}"?`)) return;
+                
+                try {
+                    const response = await fetch(`/api/documents/${filename}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Deletion failed');
+                    }
+
+                    await this.loadDocuments();
+                    this.showSuccess(`Document "${filename}" deleted`);
+                    
+                } catch (error) {
+                    this.showError(`Deletion failed: ${error.message}`);
+                }
+            }
+
+            toggleUploadSection() {
+                this.uploadSection.style.display = this.uploadSection.style.display === 'none' ? 'block' : 'none';
+            }
+
+            toggleDocumentPanel() {
+                this.documentPanel.style.display = this.documentPanel.style.display === 'none' ? 'block' : 'none';
             }
 
             focusInput() {
@@ -206,8 +677,15 @@
                 const message = this.chatInput.value.trim();
                 if (!message) return;
 
+                // Check if in RAG mode and no document selected
+                if (this.currentMode === 'rag' && !this.currentDocument) {
+                    this.showError('Please select a document for RAG chat');
+                    return;
+                }
+
                 // Add user message to chat
-                this.addMessage('USER.EXE', message, 'user');
+                const sender = this.currentMode === 'general' ? 'USER.EXE' : 'RAG_USER.EXE';
+                this.addMessage(sender, message, 'user');
                 this.chatInput.value = '';
 
                 // Show typing indicator
@@ -216,7 +694,8 @@
                 try {
                     const response = await this.callAPI(message);
                     this.hideTypingIndicator();
-                    this.addMessage('ASSISTANT.EXE', response, 'assistant');
+                    const assistantSender = this.currentMode === 'general' ? 'ASSISTANT.EXE' : 'RAG_ASSISTANT.EXE';
+                    this.addMessage(assistantSender, response, 'assistant');
                 } catch (error) {
                     this.hideTypingIndicator();
                     this.showError(`Error: ${error.message}`);
@@ -224,6 +703,14 @@
             }
 
             async callAPI(message) {
+                if (this.currentMode === 'rag') {
+                    return this.callRAGAPI(message);
+                } else {
+                    return this.callGeneralAPI(message);
+                }
+            }
+
+            async callGeneralAPI(message) {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: {
@@ -249,8 +736,38 @@
                     
                     const chunk = decoder.decode(value);
                     result += chunk;
+                    this.updateLastAssistantMessage(result);
+                }
+
+                return result;
+            }
+
+            async callRAGAPI(message) {
+                const response = await fetch('/api/rag-chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_message: message,
+                        document: this.currentDocument
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let result = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
                     
-                    // Update the last assistant message with streaming content
+                    const chunk = decoder.decode(value);
+                    result += chunk;
                     this.updateLastAssistantMessage(result);
                 }
 
@@ -305,6 +822,16 @@
                 }, 5000);
             }
 
+            showSuccess(message) {
+                this.errorMessage.textContent = message;
+                this.errorMessage.style.color = '#00ff00';
+                this.errorMessage.style.display = 'block';
+                setTimeout(() => {
+                    this.errorMessage.style.display = 'none';
+                    this.errorMessage.style.color = '#ff0000';
+                }, 3000);
+            }
+
             clearChat() {
                 this.chatContainer.innerHTML = `
                     <div class="message assistant-message">
@@ -322,8 +849,9 @@
         }
 
         // Initialize the chatbot when the page loads
+        let chatbot;
         document.addEventListener('DOMContentLoaded', () => {
-            new DOSChatbot();
+            chatbot = new DOSChatbot();
         });
     </script>
 </body>
