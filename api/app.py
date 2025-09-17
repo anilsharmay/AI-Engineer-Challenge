@@ -186,10 +186,11 @@ async def process_pdf(filename: str):
         vector_db = VectorDatabase()
         await vector_db.abuild_from_list(chunks)
         
-        # Save vector database
+        # Save vector database (only the vectors, not the full object)
         vector_db_path = vector_stores_path / f"{filename}.pkl"
         with open(vector_db_path, "wb") as f:
-            pickle.dump(vector_db, f)
+            # Save only the vectors dictionary, not the full VectorDatabase object
+            pickle.dump(vector_db.vectors, f)
         
         # Update document status
         if filename in document_status:
@@ -231,7 +232,11 @@ async def rag_chat(request: RAGChatRequest):
             raise HTTPException(status_code=404, detail="Vector database not found")
         
         with open(vector_db_path, "rb") as f:
-            vector_db = pickle.load(f)
+            vectors_dict = pickle.load(f)
+        
+        # Recreate vector database from saved vectors
+        vector_db = VectorDatabase()
+        vector_db.vectors = vectors_dict
         
         # Retrieve relevant context
         relevant_chunks = vector_db.search_by_text(
