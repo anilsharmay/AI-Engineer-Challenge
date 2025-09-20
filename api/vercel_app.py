@@ -1,11 +1,7 @@
-# Import required FastAPI components for building the API
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-# Import Pydantic for data validation and settings management
 from pydantic import BaseModel
-# Import OpenAI client for interacting with OpenAI's API
 from openai import OpenAI
 import os
 import asyncio
@@ -14,89 +10,114 @@ import shutil
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 from dotenv import load_dotenv
-
-# Import aimakerspace components for RAG functionality
-import sys
-sys.path.append(str(Path(__file__).parent.parent))
-from aimakerspace.vectordatabase import VectorDatabase
-from aimakerspace.text_utils import PDFLoader, CharacterTextSplitter
-from aimakerspace.openai_utils.embedding import EmbeddingModel
-from aimakerspace.openai_utils.chatmodel import ChatOpenAI
+import PyPDF2
+import io
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Load environment variables
 load_dotenv()
 
-# Initialize FastAPI application with a title
-app = FastAPI(title="MS DOS Chatbot API")
+# Initialize FastAPI app
+app = FastAPI(title="DOSGPT API", version="2.0")
 
-# Configure CORS (Cross-Origin Resource Sharing) middleware
-# This allows the API to be accessed from different domains/origins
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows requests from any origin
-    allow_credentials=True,  # Allows cookies to be included in requests
-    allow_methods=["*"],  # Allows all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allows all headers in requests
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Get the path to frontend files
-frontend_path = Path(__file__).parent.parent / "frontend"
-
-# Get paths for uploads and vector stores
-uploads_path = Path(__file__).parent / "uploads"
-vector_stores_path = Path(__file__).parent / "vector_stores"
+# Define paths
+uploads_path = Path("uploads")
+vector_stores_path = Path("vector_stores")
 
 # Create directories if they don't exist
 uploads_path.mkdir(exist_ok=True)
 vector_stores_path.mkdir(exist_ok=True)
 
-# Mount static files for the frontend (only if directory exists)
-if frontend_path.exists():
-    app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+# Document status tracking
+document_status = {}
 
-# Global storage for document status
-document_status: Dict[str, Dict[str, Any]] = {}
-
-# Helper function to clear all documents for single PDF workflow
-async def clear_all_documents():
-    """Clear all existing PDF files and vector databases for single PDF workflow."""
-    try:
-        # Clear all PDF files in uploads directory
-        for file_path in uploads_path.glob("*.pdf"):
-            if file_path.is_file():
-                file_path.unlink()
-        
-        # Clear all vector database files
-        for file_path in vector_stores_path.glob("*.pkl"):
-            if file_path.is_file():
-                file_path.unlink()
-        
-        # Clear document status tracking
-        document_status.clear()
-        
-    except Exception as e:
-        print(f"Warning: Error clearing documents: {str(e)}")
-
-# Define the data models for chat requests using Pydantic
-# This ensures incoming request data is properly validated
+# Pydantic models
 class ChatRequest(BaseModel):
-    developer_message: str  # Message from the developer/system
-    user_message: str      # Message from the user
-    model: Optional[str] = None  # Optional model selection
-    api_key: Optional[str] = None  # Optional API key (can use env var)
+    user_message: str
+    model: Optional[str] = None
+    api_key: Optional[str] = None
 
 class RAGChatRequest(BaseModel):
-    user_message: str      # Message from the user
-    model: Optional[str] = None  # Optional model selection
-    api_key: Optional[str] = None  # Optional API key (can use env var)
+    user_message: str
+    model: Optional[str] = None
+    api_key: Optional[str] = None
 
-class DocumentStatus(BaseModel):
-    filename: str
-    status: str  # "uploaded", "processing", "indexed", "error"
-    chunks_count: Optional[int] = None
-    error_message: Optional[str] = None
+class DocumentResponse(BaseModel):
+    documents: List[Dict[str, Any]]
 
-# Define the main chat endpoint that handles POST requests
+# Simple text splitter
+def split_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> List[str]:
+    """Split text into chunks with overlap."""
+    if len(text) <= chunk_size:
+        return [text]
+    
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        if end < len(text):
+            # Try to break at sentence boundary
+            for i in range(end, start + chunk_size - 100, -1):
+                if text[i] in '.!?':
+                    end = i + 1
+                    break
+        
+        chunks.append(text[start:end])
+        start = end - chunk_overlap
+        
+        if start >= len(text):
+            break
+    
+    return chunks
+
+# Simple vector store using TF-IDF
+class SimpleVectorStore:
+    def __init__(self):
+        self.vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
+        self.documents = []
+        self.vectors = None
+    
+    def add_documents(self, texts: List[str]):
+        """Add documents to the vector store."""
+        self.documents.extend(texts)
+        if self.documents:
+            self.vectors = self.vectorizer.fit_transform(self.documents)
+    
+    def similarity_search(self, query: str, k: int = 3) -> List[str]:
+        """Search for similar documents."""
+        if not self.documents or self.vectors is None:
+            return []
+        
+        query_vector = self.vectorizer.transform([query])
+        similarities = cosine_similarity(query_vector, self.vectors).flatten()
+        
+        # Get top k most similar documents
+        top_indices = similarities.argsort()[-k:][::-1]
+        return [self.documents[i] for i in top_indices if similarities[i] > 0.1]
+
+# Serve the frontend
+@app.get("/")
+async def serve_frontend():
+    """Serve the frontend HTML file."""
+    try:
+        with open("frontend/index.html", "r", encoding="utf-8") as f:
+            html_content = f.read()
+        return HTMLResponse(content=html_content)
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Frontend not found</h1>", status_code=404)
+
+# Chat endpoint
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     try:
@@ -112,36 +133,30 @@ async def chat(request: ChatRequest):
         # Get model from request or environment
         model = request.model or os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
         
-        # Initialize OpenAI client with the provided API key
+        # Initialize OpenAI client
         client = OpenAI(api_key=api_key)
         
-        # Create an async generator function for streaming responses
-        async def generate():
-            # Create a streaming chat completion request
-            stream = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": request.developer_message},
-                    {"role": "user", "content": request.user_message}
-                ],
-                stream=True,  # Enable streaming response
-                max_tokens=1000,  # Limit response length for DOS-style brevity
-                temperature=0.7  # Add some creativity while keeping it technical
-            )
-            
-            # Yield each chunk of the response as it becomes available
-            for chunk in stream:
-                if chunk.choices[0].delta.content is not None:
-                    yield chunk.choices[0].delta.content
-
-        # Return a streaming response to the client
-        return StreamingResponse(generate(), media_type="text/plain")
-    
+        # Create chat completion
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a helpful AI assistant. Respond in a helpful and informative way."},
+                {"role": "user", "content": request.user_message}
+            ],
+            max_tokens=1000,
+            temperature=0.7
+        )
+        
+        return {
+            "response": response.choices[0].message.content,
+            "model": model,
+            "usage": response.usage.dict() if response.usage else {"total_tokens": 0}
+        }
+        
     except Exception as e:
-        # Handle any errors that occur during processing
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
-# PDF Upload endpoint
+# Upload PDF endpoint
 @app.post("/api/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     """Upload a PDF file for processing and indexing."""
@@ -150,23 +165,30 @@ async def upload_pdf(file: UploadFile = File(...)):
         if not file.filename.lower().endswith('.pdf'):
             raise HTTPException(status_code=400, detail="Only PDF files are allowed")
         
-        # Validate file size (10MB limit)
-        file_size = 0
+        # Read file content
         content = await file.read()
         file_size = len(content)
         
-        if file_size > 10 * 1024 * 1024:  # 10MB
-            raise HTTPException(status_code=400, detail="File size must be less than 10MB")
+        if file_size > 10 * 1024 * 1024:  # 10MB limit
+            raise HTTPException(status_code=400, detail="File size too large. Maximum 10MB allowed.")
         
-        # Clear all existing documents and vector databases (single PDF workflow)
-        await clear_all_documents()
+        # Clear existing documents
+        for file_path in uploads_path.glob("*.pdf"):
+            if file_path.is_file():
+                file_path.unlink()
+        
+        for file_path in vector_stores_path.glob("*.pkl"):
+            if file_path.is_file():
+                file_path.unlink()
+        
+        document_status.clear()
         
         # Save file
         file_path = uploads_path / file.filename
         with open(file_path, "wb") as buffer:
             buffer.write(content)
         
-        # Update document status (only one document at a time)
+        # Update document status
         document_status[file.filename] = {
             "filename": file.filename,
             "status": "uploaded",
@@ -183,69 +205,64 @@ async def upload_pdf(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-# PDF Processing endpoint
+# Process PDF endpoint
 @app.post("/api/process-pdf/{filename}")
 async def process_pdf(filename: str):
-    """Process and index a PDF file for RAG functionality."""
+    """Process and index a PDF file."""
     try:
-        # Check if file exists
         file_path = uploads_path / filename
         if not file_path.exists():
-            raise HTTPException(status_code=404, detail="PDF file not found")
+            raise HTTPException(status_code=404, detail="File not found")
         
-        # Update status to processing
-        if filename in document_status:
-            document_status[filename]["status"] = "processing"
+        # Extract text from PDF
+        with open(file_path, "rb") as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            text = ""
+            for page in pdf_reader.pages:
+                text += page.extract_text() + "\n"
         
-        # Load PDF and extract text
-        pdf_loader = PDFLoader(str(file_path))
-        documents = pdf_loader.load_documents()
-        
-        if not documents or not documents[0].strip():
-            raise HTTPException(status_code=400, detail="No text content found in PDF")
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="No text found in PDF")
         
         # Split text into chunks
-        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        chunks = text_splitter.split_texts(documents)
+        chunks = split_text(text)
         
-        # Create vector database
-        vector_db = VectorDatabase()
-        await vector_db.abuild_from_list(chunks)
+        # Create vector store
+        vector_store = SimpleVectorStore()
+        vector_store.add_documents(chunks)
         
-        # Save vector database (only the vectors, not the full object)
-        vector_db_path = vector_stores_path / f"{filename}.pkl"
-        with open(vector_db_path, "wb") as f:
-            # Save only the vectors dictionary, not the full VectorDatabase object
-            pickle.dump(vector_db.vectors, f)
+        # Save vector store
+        vector_store_path = vector_stores_path / f"{filename}.pkl"
+        with open(vector_store_path, "wb") as f:
+            pickle.dump(vector_store, f)
         
         # Update document status
-        if filename in document_status:
-            document_status[filename].update({
-                "status": "indexed",
-                "chunks_count": len(chunks)
-            })
+        document_status[filename] = {
+            "filename": filename,
+            "status": "indexed",
+            "chunks_count": len(chunks),
+            "error_message": None
+        }
         
         return {
-            "message": f"PDF '{filename}' processed and indexed successfully",
-            "filename": filename,
+            "message": f"PDF '{filename}' processed successfully",
             "chunks_count": len(chunks)
         }
         
     except Exception as e:
-        # Update status to error
+        # Update document status with error
         if filename in document_status:
-            document_status[filename].update({
-                "status": "error",
-                "error_message": str(e)
-            })
+            document_status[filename]["status"] = "error"
+            document_status[filename]["error_message"] = str(e)
+        
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
-# RAG Chat endpoint
+# RAG chat endpoint
 @app.post("/api/rag-chat")
 async def rag_chat(request: RAGChatRequest):
-    """Chat with the current document using RAG (single document workflow)."""
+    """Chat with the current document using RAG."""
     try:
-        # Check if there's any indexed document (single document workflow)
+        # Check if there's any indexed document
         indexed_docs = [doc for doc in document_status.values() if doc["status"] == "indexed"]
         
         if not indexed_docs:
@@ -261,33 +278,16 @@ async def rag_chat(request: RAGChatRequest):
             raise HTTPException(status_code=404, detail="Vector database not found")
         
         with open(vector_db_path, "rb") as f:
-            vectors_dict = pickle.load(f)
+            vector_store = pickle.load(f)
         
-        # Recreate vector database from saved vectors
-        vector_db = VectorDatabase()
-        vector_db.vectors = vectors_dict
-        
-        # Retrieve relevant context
-        relevant_chunks = vector_db.search_by_text(
-            query_text=request.user_message,
-            k=5,
-            return_as_text=True
-        )
+        # Search for relevant chunks
+        relevant_chunks = vector_store.similarity_search(request.user_message, k=3)
         
         if not relevant_chunks:
-            raise HTTPException(status_code=400, detail="No relevant context found")
+            raise HTTPException(status_code=400, detail="No relevant content found in document")
         
-        # Create RAG prompt
+        # Create context
         context = "\n\n".join(relevant_chunks)
-        rag_prompt = f"""You are a helpful assistant that answers questions based ONLY on the provided context from a PDF document. 
-Do not use any external knowledge. If the answer is not in the context, clearly state that the information is not available in the document.
-
-Context from document:
-{context}
-
-Question: {request.user_message}
-
-Answer based only on the context above:"""
         
         # Get API key and model
         api_key = request.api_key or os.getenv("OPENAI_API_KEY")
@@ -296,86 +296,77 @@ Answer based only on the context above:"""
         
         model = request.model or os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
         
-        # Initialize chat model
-        chat_model = ChatOpenAI(model_name=model)
+        # Initialize OpenAI client
+        client = OpenAI(api_key=api_key)
         
-        # Create streaming response
-        async def generate():
-            try:
-                async for chunk in chat_model.astream([{"role": "user", "content": rag_prompt}]):
-                    yield chunk
-            except Exception as e:
-                yield f"Error: {str(e)}"
+        # Create RAG prompt
+        rag_prompt = f"""Based on the following context from the document, answer the user's question. If the answer cannot be found in the context, say so.
+
+Context:
+{context}
+
+Question: {request.user_message}
+
+Answer based only on the context above:"""
         
-        return StreamingResponse(generate(), media_type="text/plain")
+        # Create chat completion
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context. Only use information from the context."},
+                {"role": "user", "content": rag_prompt}
+            ],
+            max_tokens=1000,
+            temperature=0.7
+        )
+        
+        return {
+            "response": response.choices[0].message.content,
+            "model": model,
+            "usage": response.usage.dict() if response.usage else {"total_tokens": 0}
+        }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"RAG chat error: {str(e)}")
 
-# Document management endpoints
-@app.get("/api/documents")
-async def list_documents():
-    """List all uploaded documents and their status."""
-    return {"documents": list(document_status.values())}
+# Get documents endpoint
+@app.get("/api/documents", response_model=DocumentResponse)
+async def get_documents():
+    """Get list of uploaded documents and their status."""
+    return DocumentResponse(documents=list(document_status.values()))
 
-@app.get("/api/documents/{filename}")
-async def get_document_status(filename: str):
-    """Get the status of a specific document."""
-    if filename not in document_status:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return document_status[filename]
-
+# Delete document endpoint
 @app.delete("/api/documents/{filename}")
 async def delete_document(filename: str):
     """Delete a document and its vector store."""
     try:
         # Remove PDF file
-        file_path = uploads_path / filename
-        if file_path.exists():
-            file_path.unlink()
+        pdf_path = uploads_path / filename
+        if pdf_path.exists():
+            pdf_path.unlink()
         
         # Remove vector store
-        vector_db_path = vector_stores_path / f"{filename}.pkl"
-        if vector_db_path.exists():
-            vector_db_path.unlink()
+        vector_path = vector_stores_path / f"{filename}.pkl"
+        if vector_path.exists():
+            vector_path.unlink()
         
-        # Remove from status tracking
+        # Remove from document status
         if filename in document_status:
             del document_status[filename]
         
         return {"message": f"Document '{filename}' deleted successfully"}
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Deletion failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
-# Define a health check endpoint to verify API status
+# Health check endpoint
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "message": "MS DOS Chatbot API is running"}
+    """Health check endpoint."""
+    return {"status": "healthy", "version": "2.0"}
 
-# Serve the main page
-@app.get("/")
-async def read_root():
-    index_path = frontend_path / "index.html"
-    if index_path.exists():
-        return FileResponse(str(index_path))
-    else:
-        return HTMLResponse("""
-        <html>
-            <head><title>MS DOS Chatbot</title></head>
-            <body>
-                <h1>MS DOS Chatbot</h1>
-                <p>Frontend files not found. Please check the deployment.</p>
-                <p>API is running at <a href="/api/health">/api/health</a></p>
-            </body>
-        </html>
-        """)
-
-# Entry point for running the application directly
 if __name__ == "__main__":
     import uvicorn
-    # Get host and port from environment or use defaults
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", 8000))
-    # Start the server on all network interfaces (0.0.0.0) on port 8000
     uvicorn.run(app, host=host, port=port)
