@@ -140,7 +140,7 @@ async def chat(request: ChatRequest):
 # PDF Upload endpoint
 @app.post("/api/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
-    """Upload a PDF file for processing and indexing."""
+    """Upload a PDF file for processing and indexing. Replaces any existing PDF."""
     try:
         # Validate file type
         if not file.filename.lower().endswith('.pdf'):
@@ -163,6 +163,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             buffer.write(content)
         
         # Update document status (only one document at a time)
+        document_status.clear()  # Clear all previous documents
         document_status[file.filename] = {
             "filename": file.filename,
             "status": "uploaded",
