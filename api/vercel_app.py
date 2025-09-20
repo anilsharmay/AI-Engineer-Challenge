@@ -16,62 +16,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Import aimakerspace components for RAG functionality
-# Vercel-compatible imports (replacing custom aimakerspace modules)
-import PyPDF2
-import re
-
-# Simple text processing functions (replacing aimakerspace modules)
-def split_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> List[str]:
-    """Split text into chunks with overlap."""
-    if len(text) <= chunk_size:
-        return [text]
-    
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = start + chunk_size
-        if end < len(text):
-            # Try to break at sentence boundary
-            for i in range(end, start + chunk_size - 100, -1):
-                if text[i] in '.!?':
-                    end = i + 1
-                    break
-        
-        chunks.append(text[start:end])
-        start = end - chunk_overlap
-        
-        if start >= len(text):
-            break
-    
-    return chunks
-
-class SimpleVectorStore:
-    def __init__(self):
-        self.documents = []
-    
-    def add_documents(self, texts: List[str]):
-        """Add documents to the store."""
-        self.documents.extend(texts)
-    
-    def similarity_search(self, query: str, k: int = 3) -> List[str]:
-        """Search for documents containing query keywords."""
-        if not self.documents:
-            return []
-        
-        # Extract keywords from query
-        query_words = set(re.findall(r'\b\w+\b', query.lower()))
-        
-        # Score documents based on keyword matches
-        scored_docs = []
-        for doc in self.documents:
-            doc_words = set(re.findall(r'\b\w+\b', doc.lower()))
-            matches = len(query_words.intersection(doc_words))
-            if matches > 0:
-                scored_docs.append((matches, doc))
-        
-        # Sort by score and return top k
-        scored_docs.sort(reverse=True)
-        return [doc for _, doc in scored_docs[:k]]
+import sys
+sys.path.append(str(Path(__file__).parent.parent))
+from aimakerspace.vectordatabase import VectorDatabase
+from aimakerspace.text_utils import PDFLoader, CharacterTextSplitter
+from aimakerspace.openai_utils.embedding import EmbeddingModel
+from aimakerspace.openai_utils.chatmodel import ChatOpenAI
 
 # Load environment variables
 load_dotenv()
@@ -108,26 +58,6 @@ if frontend_path.exists():
 # Global storage for document status
 document_status: Dict[str, Dict[str, Any]] = {}
 
-# Helper function to clear all documents for single PDF workflow
-async def clear_all_documents():
-    """Clear all existing PDF files and vector databases for single PDF workflow."""
-    try:
-        # Clear all PDF files in uploads directory
-        for file_path in uploads_path.glob("*.pdf"):
-            if file_path.is_file():
-                file_path.unlink()
-        
-        # Clear all vector database files
-        for file_path in vector_stores_path.glob("*.pkl"):
-            if file_path.is_file():
-                file_path.unlink()
-        
-        # Clear document status tracking
-        document_status.clear()
-        
-    except Exception as e:
-        print(f"Warning: Error clearing documents: {str(e)}")
-
 # Define the data models for chat requests using Pydantic
 # This ensures incoming request data is properly validated
 class ChatRequest(BaseModel):
@@ -138,6 +68,7 @@ class ChatRequest(BaseModel):
 
 class RAGChatRequest(BaseModel):
     user_message: str      # Message from the user
+    document: str         # Document filename to query
     model: Optional[str] = None  # Optional model selection
     api_key: Optional[str] = None  # Optional API key (can use env var)
 
@@ -205,15 +136,12 @@ async def upload_pdf(file: UploadFile = File(...)):
         if file_size > 10 * 1024 * 1024:  # 10MB
             raise HTTPException(status_code=400, detail="File size must be less than 10MB")
         
-        # Clear all existing documents and vector databases (single PDF workflow)
-        await clear_all_documents()
-        
         # Save file
         file_path = uploads_path / file.filename
         with open(file_path, "wb") as buffer:
             buffer.write(content)
         
-        # Update document status (only one document at a time)
+        # Update document status
         document_status[file.filename] = {
             "filename": file.filename,
             "status": "uploaded",
@@ -222,7 +150,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         }
         
         return {
-            "message": f"PDF '{file.filename}' uploaded successfully (replaced previous document)",
+            "message": f"PDF '{file.filename}' uploaded successfully",
             "filename": file.filename,
             "size": file_size
         }
@@ -244,22 +172,20 @@ async def process_pdf(filename: str):
         if filename in document_status:
             document_status[filename]["status"] = "processing"
         
-        # Load PDF and extract text using PyPDF2
-        with open(file_path, "rb") as file:
-            pdf_reader = PyPDF2.PdfReader(file)
-            text = ""
-            for page in pdf_reader.pages:
-                text += page.extract_text() + "\n"
+        # Load PDF and extract text
+        pdf_loader = PDFLoader(str(file_path))
+        documents = pdf_loader.load_documents()
         
-        if not text.strip():
+        if not documents or not documents[0].strip():
             raise HTTPException(status_code=400, detail="No text content found in PDF")
         
         # Split text into chunks
-        chunks = split_text(text, chunk_size=1000, chunk_overlap=200)
+        text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        chunks = text_splitter.split_texts(documents)
         
         # Create vector database
-        vector_db = SimpleVectorStore()
-        vector_db.add_documents(chunks)
+        vector_db = VectorDatabase()
+        await vector_db.abuild_from_list(chunks)
         
         # Save vector database (only the vectors, not the full object)
         vector_db_path = vector_stores_path / f"{filename}.pkl"
@@ -292,20 +218,17 @@ async def process_pdf(filename: str):
 # RAG Chat endpoint
 @app.post("/api/rag-chat")
 async def rag_chat(request: RAGChatRequest):
-    """Chat with the current document using RAG (single document workflow)."""
+    """Chat with a specific document using RAG."""
     try:
-        # Check if there's any indexed document (single document workflow)
-        indexed_docs = [doc for doc in document_status.values() if doc["status"] == "indexed"]
+        # Check if document is indexed
+        if request.document not in document_status:
+            raise HTTPException(status_code=404, detail="Document not found")
         
-        if not indexed_docs:
-            raise HTTPException(status_code=400, detail="No document is currently loaded. Please upload a PDF first.")
-        
-        # Get the single active document
-        active_doc = indexed_docs[0]
-        document_name = active_doc["filename"]
+        if document_status[request.document]["status"] != "indexed":
+            raise HTTPException(status_code=400, detail="Document not yet indexed")
         
         # Load vector database
-        vector_db_path = vector_stores_path / f"{document_name}.pkl"
+        vector_db_path = vector_stores_path / f"{request.document}.pkl"
         if not vector_db_path.exists():
             raise HTTPException(status_code=404, detail="Vector database not found")
         
@@ -345,25 +268,18 @@ Answer based only on the context above:"""
         
         model = request.model or os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
         
-        # Initialize OpenAI client
-        client = OpenAI(api_key=api_key)
+        # Initialize chat model
+        chat_model = ChatOpenAI(model_name=model)
         
-        # Create chat completion
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context. Only use information from the context."},
-                {"role": "user", "content": rag_prompt}
-            ],
-            max_tokens=1000,
-            temperature=0.7
-        )
+        # Create streaming response
+        async def generate():
+            try:
+                async for chunk in chat_model.astream([{"role": "user", "content": rag_prompt}]):
+                    yield chunk
+            except Exception as e:
+                yield f"Error: {str(e)}"
         
-        return {
-            "response": response.choices[0].message.content,
-            "model": model,
-            "usage": response.usage.dict() if response.usage else {"total_tokens": 0}
-        }
+        return StreamingResponse(generate(), media_type="text/plain")
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
