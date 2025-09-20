@@ -264,7 +264,7 @@
 </head>
 <body>
     <div class="dos-header">
-        MS DOS Chatbot v2.0 - PDF RAG System | Press Enter to send | F1: Upload PDF
+        MS DOS Chatbot v2.0 - PDF RAG System | Press Enter to send | F1: Upload PDF | F3: Delete PDF
     </div>
     
     <!-- Mode Selector -->
@@ -312,7 +312,7 @@
     </div>
     
     <div class="status-bar">
-        Ready | Press Enter to send | Ctrl+C to clear | F1: Upload PDF | Mode: <span id="currentMode">GENERAL</span>
+        Ready | Press Enter to send | Ctrl+C to clear | F1: Upload PDF | F3: Delete PDF | Mode: <span id="currentMode">GENERAL</span>
     </div>
 
     <script>
@@ -381,6 +381,9 @@
                     } else if (e.key === 'F1') {
                         e.preventDefault();
                         this.toggleUploadSection();
+                    } else if (e.key === 'F3') {
+                        e.preventDefault();
+                        this.deleteDocument();
                     }
                 });
 
@@ -734,6 +737,54 @@
                 this.updateEmptyState();
                 this.hideTypingIndicator();
                 this.errorMessage.style.display = 'none';
+            }
+
+            async deleteDocument() {
+                if (!this.hasDocument || !this.currentDocumentName) {
+                    this.showError('No document is currently loaded to delete.');
+                    return;
+                }
+
+                // Confirm deletion
+                if (!confirm(`Are you sure you want to delete the document "${this.currentDocumentName}"? This action cannot be undone.`)) {
+                    return;
+                }
+
+                try {
+                    this.showError('Deleting document...', '#00ff00');
+                    
+                    const response = await fetch(`/api/documents/${encodeURIComponent(this.currentDocumentName)}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'Failed to delete document');
+                    }
+
+                    const result = await response.json();
+                    
+                    // Store document name before clearing
+                    const deletedDocName = this.currentDocumentName;
+                    
+                    // Clear local state
+                    this.hasDocument = false;
+                    this.currentDocumentName = null;
+                    localStorage.removeItem('currentDocumentName');
+                    
+                    // Update UI
+                    this.updateEmptyState();
+                    
+                    // Show success message
+                    this.showError(`Document "${deletedDocName}" deleted successfully.`, '#00ff00');
+                    
+                    // Add system message about deletion
+                    this.addMessage('SYSTEM.EXE', `Document "${deletedDocName}" has been deleted. Please upload a new PDF document to chat with.`, 'system');
+                    
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    this.showError(`Failed to delete document: ${error.message}`);
+                }
             }
 
             scrollToBottom() {
