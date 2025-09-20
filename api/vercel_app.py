@@ -93,8 +93,9 @@ app.add_middleware(
 frontend_path = Path(__file__).parent.parent / "frontend"
 
 # Get paths for uploads and vector stores
-uploads_path = Path(__file__).parent / "uploads"
-vector_stores_path = Path(__file__).parent / "vector_stores"
+# Use /tmp directory for Vercel serverless functions (writable)
+uploads_path = Path("/tmp/uploads")
+vector_stores_path = Path("/tmp/vector_stores")
 
 # Create directories if they don't exist
 uploads_path.mkdir(exist_ok=True)
