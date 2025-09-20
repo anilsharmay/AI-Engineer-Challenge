@@ -428,9 +428,9 @@
                 const prompt = mode === 'general' ? 'C:\\CHAT\\>' : 'C:\\RAG\\>';
                 document.querySelector('.prompt').textContent = prompt;
                 
-                // Show/hide upload section based on mode
+                // Show/hide upload section based on mode and document status
                 const uploadSection = document.getElementById('uploadSection');
-                if (mode === 'rag') {
+                if (mode === 'rag' && !this.hasDocument) {
                     uploadSection.style.display = 'block';
                 } else {
                     uploadSection.style.display = 'none';
@@ -503,6 +503,8 @@
                             </div>
                         `;
                         this.emptyStateMessage.style.display = 'block';
+                        // Hide upload section when document is loaded
+                        this.uploadSection.style.display = 'none';
                     } else {
                         // Show RAG mode welcome message
                         this.emptyStateMessage.innerHTML = `
@@ -510,9 +512,13 @@
                             <div class="message-content">Welcome to RAG Mode. I can help you upload any PDF and chat with its contents.</div>
                         `;
                         this.emptyStateMessage.style.display = 'block';
+                        // Show upload section when no document is loaded
+                        this.uploadSection.style.display = 'block';
                     }
                 } else {
                     this.emptyStateMessage.style.display = 'none';
+                    // Hide upload section in general mode
+                    this.uploadSection.style.display = 'none';
                 }
             }
 
