@@ -103,7 +103,11 @@ async def chat(request: ChatRequest):
         # Get API key from request or environment
         api_key = request.api_key or os.getenv("OPENAI_API_KEY")
         if not api_key:
-            raise HTTPException(status_code=400, detail="OpenAI API key is required. Set it in .env file or provide in request.")
+            return {
+                "response": "OpenAI API key is required. Please set OPENAI_API_KEY environment variable in Vercel settings.",
+                "model": "error",
+                "usage": {"total_tokens": 0}
+            }
         
         # Get model from request or environment
         model = request.model or os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
@@ -288,7 +292,7 @@ Answer based only on the context above:"""
         # Get API key and model
         api_key = request.api_key or os.getenv("OPENAI_API_KEY")
         if not api_key:
-            raise HTTPException(status_code=400, detail="OpenAI API key is required")
+            raise HTTPException(status_code=400, detail="OpenAI API key is required. Please set OPENAI_API_KEY environment variable in Vercel settings.")
         
         model = request.model or os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
         
