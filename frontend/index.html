@@ -264,13 +264,13 @@
 </head>
 <body>
     <div class="dos-header">
-        MS DOS Chatbot v2.0 - PDF RAG System | Press Enter to send | F1: Upload PDF | F3: Delete PDF
+        DOSGPT v2.0 - PDF RAG System | Press Enter to send
     </div>
     
     <!-- Mode Selector -->
     <div class="mode-selector">
-        <button id="generalMode" class="mode-btn active">GENERAL.EXE</button>
-        <button id="ragMode" class="mode-btn">RAG.EXE</button>
+        <button id="generalMode" class="mode-btn active">General Mode</button>
+        <button id="ragMode" class="mode-btn">RAG Mode</button>
     </div>
 
     <!-- PDF Upload Section -->
@@ -289,10 +289,10 @@
     
     <div class="dos-window">
         <div class="chat-container" id="chatContainer">
-            <div class="message assistant-message">
-                <div class="message-header">ASSISTANT.EXE</div>
-                <div class="message-content">Welcome to the MS DOS Chatbot! I'm ready to help you with any questions. Type your message and press Enter to start chatting.</div>
-            </div>
+                    <div class="message assistant-message">
+                        <div class="message-header">ASSISTANT.EXE</div>
+                        <div class="message-content">Welcome to DOSGPT! I'm ready to help you with any questions. Type your message and press Enter to start chatting.</div>
+                    </div>
             <div class="message system-message" id="emptyStateMessage" style="display: none;">
                 <div class="message-header">SYSTEM.EXE</div>
                 <div class="message-content">No PDF document is currently loaded. Press F1 to upload a PDF document to enable RAG mode, or use GENERAL mode for regular chat.</div>
@@ -312,7 +312,7 @@
     </div>
     
     <div class="status-bar">
-        Ready | Press Enter to send | Ctrl+C to clear | F1: Upload PDF | F3: Delete PDF | Mode: <span id="currentMode">GENERAL</span>
+        Ready | Press Enter to send | Ctrl+C to clear | <span id="commandLabels"></span> | Mode: <span id="currentMode">General Mode</span>
     </div>
 
     <script>
@@ -342,6 +342,7 @@
                 this.currentMode = 'general';
                 this.hasDocument = false;
                 this.currentDocumentName = null;
+                this.commandLabels = document.getElementById('commandLabels');
                 
                 this.setupEventListeners();
                 this.focusInput();
@@ -399,11 +400,29 @@
                 // Update UI
                 this.generalModeBtn.classList.toggle('active', mode === 'general');
                 this.ragModeBtn.classList.toggle('active', mode === 'rag');
-                this.currentModeElement.textContent = mode.toUpperCase();
+                
+                // Update status bar with proper mode names
+                const modeDisplay = mode === 'general' ? 'General Mode' : 'RAG Mode';
+                this.currentModeElement.textContent = modeDisplay;
+                
+                // Update command labels based on mode
+                if (mode === 'rag') {
+                    this.commandLabels.textContent = 'F1: Upload PDF | F3: Delete PDF';
+                } else {
+                    this.commandLabels.textContent = '';
+                }
                 
                 // Update chat prompt
                 const prompt = mode === 'general' ? 'C:\\CHAT\\>' : 'C:\\RAG\\>';
                 document.querySelector('.prompt').textContent = prompt;
+                
+                // Show/hide upload section based on mode
+                const uploadSection = document.getElementById('uploadSection');
+                if (mode === 'rag') {
+                    uploadSection.style.display = 'block';
+                } else {
+                    uploadSection.style.display = 'none';
+                }
                 
                 // Show/hide empty state message
                 this.updateEmptyState();
@@ -422,10 +441,10 @@
                         `;
                         this.emptyStateMessage.style.display = 'block';
                     } else {
-                        // Show upload prompt
+                        // Show RAG mode welcome message
                         this.emptyStateMessage.innerHTML = `
-                            <div class="message-header">SYSTEM.EXE</div>
-                            <div class="message-content">No PDF document is currently loaded. Press F1 to upload a PDF document to enable RAG mode, or use GENERAL mode for regular chat.</div>
+                            <div class="message-header">ASSISTANT.EXE</div>
+                            <div class="message-content">Welcome to RAG Mode. I can help you upload any PDF and chat with its contents.</div>
                         `;
                         this.emptyStateMessage.style.display = 'block';
                     }
@@ -728,8 +747,8 @@
                         <div class="message-content">Chat cleared. Ready for new conversation.</div>
                     </div>
                     <div class="message system-message" id="emptyStateMessage" style="display: none;">
-                        <div class="message-header">SYSTEM.EXE</div>
-                        <div class="message-content">No PDF document is currently loaded. Press F1 to upload a PDF document to enable RAG mode, or use GENERAL mode for regular chat.</div>
+                        <div class="message-header">ASSISTANT.EXE</div>
+                        <div class="message-content">Welcome to RAG Mode. I can help you upload any PDF and chat with its contents.</div>
                     </div>
                 `;
                 // Re-reference the empty state element after clearing
