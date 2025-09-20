@@ -263,7 +263,7 @@
     </style>
 </head>
 <body>
-    <div class="dos-header">
+    <div class="dos-header" id="dosHeader">
         DOSGPT v2.0 - PDF RAG System | Press Enter to send
     </div>
     
@@ -343,6 +343,7 @@
                 this.hasDocument = false;
                 this.currentDocumentName = null;
                 this.commandLabels = document.getElementById('commandLabels');
+                this.dosHeader = document.getElementById('dosHeader');
                 
                 // Separate chat histories for each mode
                 this.chatHistories = {
@@ -417,8 +418,10 @@
                 // Update command labels based on mode
                 if (mode === 'rag') {
                     this.commandLabels.textContent = 'F1: Upload PDF | F3: Delete PDF';
+                    this.dosHeader.textContent = 'DOSGPT v2.0 - PDF RAG System | Press Enter to send | F1: Upload PDF | F3: Delete PDF';
                 } else {
                     this.commandLabels.textContent = '';
+                    this.dosHeader.textContent = 'DOSGPT v2.0 - PDF RAG System | Press Enter to send';
                 }
                 
                 // Update chat prompt
