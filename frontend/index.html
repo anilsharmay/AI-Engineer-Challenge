@@ -344,6 +344,12 @@
                 this.currentDocumentName = null;
                 this.commandLabels = document.getElementById('commandLabels');
                 
+                // Separate chat histories for each mode
+                this.chatHistories = {
+                    general: [],
+                    rag: []
+                };
+                
                 this.setupEventListeners();
                 this.focusInput();
                 this.loadDocuments();
@@ -395,6 +401,9 @@
             }
 
             switchMode(mode) {
+                // Save current chat history before switching
+                this.saveCurrentChatHistory();
+                
                 this.currentMode = mode;
                 
                 // Update UI
@@ -424,8 +433,59 @@
                     uploadSection.style.display = 'none';
                 }
                 
+                // Restore chat history for the new mode
+                this.restoreChatHistory(mode);
+                
                 // Show/hide empty state message
                 this.updateEmptyState();
+            }
+
+            saveCurrentChatHistory() {
+                // Save all messages except the empty state message
+                const messages = this.chatContainer.querySelectorAll('.message:not(#emptyStateMessage)');
+                this.chatHistories[this.currentMode] = Array.from(messages).map(msg => ({
+                    outerHTML: msg.outerHTML
+                }));
+            }
+
+            restoreChatHistory(mode) {
+                // Clear current chat container
+                this.chatContainer.innerHTML = '';
+                
+                // Restore messages for the mode
+                const history = this.chatHistories[mode];
+                if (history && history.length > 0) {
+                    history.forEach(msgData => {
+                        this.chatContainer.insertAdjacentHTML('beforeend', msgData.outerHTML);
+                    });
+                } else {
+                    // If no history, add the appropriate welcome message
+                    if (mode === 'general') {
+                        this.chatContainer.innerHTML = `
+                            <div class="message assistant-message">
+                                <div class="message-header">ASSISTANT.EXE</div>
+                                <div class="message-content">Welcome to DOSGPT! I'm ready to help you with any questions. Type your message and press Enter to start chatting.</div>
+                            </div>
+                        `;
+                    } else {
+                        // RAG mode - will be handled by updateEmptyState
+                        this.chatContainer.innerHTML = '';
+                    }
+                }
+                
+                // Re-add the empty state message
+                this.chatContainer.insertAdjacentHTML('beforeend', `
+                    <div class="message system-message" id="emptyStateMessage" style="display: none;">
+                        <div class="message-header">ASSISTANT.EXE</div>
+                        <div class="message-content">Welcome to RAG Mode. I can help you upload any PDF and chat with its contents.</div>
+                    </div>
+                `);
+                
+                // Re-reference the empty state element
+                this.emptyStateMessage = document.getElementById('emptyStateMessage');
+                
+                // Scroll to bottom
+                this.scrollToBottom();
             }
 
             updateEmptyState() {
@@ -741,6 +801,10 @@
             }
 
             clearChat() {
+                // Clear the current mode's chat history
+                this.chatHistories[this.currentMode] = [];
+                
+                // Clear the chat container
                 this.chatContainer.innerHTML = `
                     <div class="message assistant-message">
                         <div class="message-header">ASSISTANT.EXE</div>
