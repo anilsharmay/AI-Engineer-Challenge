@@ -12,9 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import PyPDF2
 import io
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+import re
 
 # Load environment variables
 load_dotenv()
@@ -81,30 +79,34 @@ def split_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> L
     
     return chunks
 
-# Simple vector store using TF-IDF
+# Simple keyword-based search
 class SimpleVectorStore:
     def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
         self.documents = []
-        self.vectors = None
     
     def add_documents(self, texts: List[str]):
-        """Add documents to the vector store."""
+        """Add documents to the store."""
         self.documents.extend(texts)
-        if self.documents:
-            self.vectors = self.vectorizer.fit_transform(self.documents)
     
     def similarity_search(self, query: str, k: int = 3) -> List[str]:
-        """Search for similar documents."""
-        if not self.documents or self.vectors is None:
+        """Search for documents containing query keywords."""
+        if not self.documents:
             return []
         
-        query_vector = self.vectorizer.transform([query])
-        similarities = cosine_similarity(query_vector, self.vectors).flatten()
+        # Extract keywords from query
+        query_words = set(re.findall(r'\b\w+\b', query.lower()))
         
-        # Get top k most similar documents
-        top_indices = similarities.argsort()[-k:][::-1]
-        return [self.documents[i] for i in top_indices if similarities[i] > 0.1]
+        # Score documents based on keyword matches
+        scored_docs = []
+        for doc in self.documents:
+            doc_words = set(re.findall(r'\b\w+\b', doc.lower()))
+            matches = len(query_words.intersection(doc_words))
+            if matches > 0:
+                scored_docs.append((matches, doc))
+        
+        # Sort by score and return top k
+        scored_docs.sort(reverse=True)
+        return [doc for _, doc in scored_docs[:k]]
 
 # Serve the frontend
 @app.get("/")
