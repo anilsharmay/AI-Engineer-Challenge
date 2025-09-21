@@ -14,7 +14,7 @@ Experience the future of AI with the aesthetic of the past! DOSGPT combines nost
 #### **📄 Advanced PDF Processing**
 - **Single PDF Workflow**: Upload one PDF at a time for focused document analysis
 - **Automatic Document Processing**: PDFs are automatically parsed, chunked, and indexed
-- **Vector Database**: Custom TF-IDF based vector store for efficient document retrieval
+- **Vector Database**: OpenAI embeddings with cosine similarity for efficient document retrieval
 - **Smart Document Management**: Upload new PDFs automatically replace previous ones
 
 #### **⌨️ Authentic DOS Experience**
@@ -104,8 +104,8 @@ DOSGPT is ready to use! Experience the most retro-tastic AI chat interface with 
 
 #### **Key Features:**
 - **Dual-Mode Interface**: Separate General and RAG chat experiences
-- **PDF Processing**: Automatic text extraction, chunking, and vector indexing
-- **Vector Database**: Custom TF-IDF implementation for document retrieval
+- **PDF Processing**: Automatic text extraction, chunking, and OpenAI embedding generation
+- **Vector Database**: OpenAI embeddings with cosine similarity for document retrieval
 - **Single PDF Workflow**: Focused document analysis with automatic replacement
 - **Environment Detection**: Automatic local vs. Vercel path configuration
 - **Real-time Streaming**: Live AI responses with proper message handling
@@ -162,7 +162,8 @@ PORT=8000
 
 #### **RAG Implementation:**
 - Uses custom `aimakerspace` modules for PDF processing
-- Implements TF-IDF based vector similarity search
+- Implements OpenAI embeddings with cosine similarity search
+- Uses `text-embedding-3-small` model for vector generation
 - Supports automatic text chunking with configurable overlap
 - Handles single PDF workflow with automatic document replacement
 
